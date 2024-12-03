@@ -51,36 +51,68 @@ void setup() {
   motor0.current_limit = 2;         // Adjust based on your motor's specifications
   motor0.voltage_limit = 24;        // Adjust according to your power supply
 
+
   // Current sense setup
   current_sense.init();
   current_sense.gain_b *= -1;
   current_sense.gain_a *= -1;
+  current_sense.skip_align = true;
+  //current_sense.calibrateOffsets();
   motor0.linkCurrentSense(&current_sense);
 
-  // Control loop setup
-  motor0.torque_controller = TorqueControlType::foc_current;
-  motor0.controller = MotionControlType::torque;
 
-  // FOC current control PID parameters
-  motor0.PID_current_q.P = 2;
-  motor0.PID_current_q.I = 800;
-  motor0.PID_current_d.P = 2;
-  motor0.PID_current_d.I = 800;
-  motor0.LPF_current_q.Tf = 0.002;
-  motor0.LPF_current_d.Tf = 0.002;
+  motor0.controller = MotionControlType::angle;
+motor0.motion_downsample = 0.0;
 
-  // Velocity PID parameters
-  motor0.PID_velocity.P = 0.1;
-  motor0.PID_velocity.I = 1;
-  motor0.PID_velocity.D = 0;
+// Velocity loop PID parameters
+motor0.PID_velocity.P = 0.15;
+motor0.PID_velocity.I = 0.0;
+motor0.PID_velocity.D = 0.0;
+motor0.PID_velocity.output_ramp = 500.0;
+motor0.PID_velocity.limit = 2.0;
 
-  // Velocity limit
-  motor0.velocity_limit = 40;
+// Low pass filtering for velocity
+motor0.LPF_velocity.Tf = 0.02;
+
+// Angle loop PID parameters
+motor0.P_angle.P = 20.0;
+motor0.P_angle.I = 0.0;
+motor0.P_angle.D = 0.0;
+motor0.P_angle.output_ramp = 0.0;
+motor0.P_angle.limit = 3.0;
+
+// Low pass filtering for angle
+motor0.LPF_angle.Tf = 0.0;
+
+// Current q loop PID parameters
+motor0.PID_current_q.P = 7.0;
+motor0.PID_current_q.I = 300.0;
+motor0.PID_current_q.D = 0.0;
+motor0.PID_current_q.output_ramp = 0.0;
+motor0.PID_current_q.limit = 24.0;
+
+// Low pass filtering for current q
+motor0.LPF_current_q.Tf = 0.005;
+
+// Current d loop PID parameters
+motor0.PID_current_d.P = 7.0;
+motor0.PID_current_d.I = 300.0;
+motor0.PID_current_d.D = 0.0;
+motor0.PID_current_d.output_ramp = 0.0;
+motor0.PID_current_d.limit = 24.0;
+
+// Low pass filtering for current d
+motor0.LPF_current_d.Tf = 0.005;
+
+// Limits
+motor0.velocity_limit = 10.0;    // [rad/s]
+motor0.voltage_limit = 24.0;     // [V]
+motor0.current_limit = 2.0;      // [A]
 
   // Monitoring setup
   Serial.begin(115200);
   motor0.useMonitoring(Serial);
-  motor0.monitor_downsample = 0;
+  motor0.monitor_downsample = 1000;
   motor0.monitor_variables = _MON_TARGET | _MON_VEL | _MON_ANGLE | _MON_CURR_Q;
 
   // Motor initialization
@@ -96,6 +128,7 @@ void setup() {
   Serial.println(F("Single motor sketch ready."));
 }
 
+int iter = 0;
 void loop() {
   // FOC phase voltage setting
   motor0.loopFOC();
@@ -105,5 +138,21 @@ void loop() {
 
   // User communication
   command.run();
-  motor0.monitor();
+  //motor0.monitor();
+PhaseCurrent_s currents = current_sense.getPhaseCurrents();
+float current_magnitude = current_sense.getDCCurrent();
+  // Print motor currents 
+// print every 100th iteration
+if( iter++ > 1000 ){
+  iter = 0;
+  Serial.print("Ia: ");
+  Serial.print(currents.a, 4);
+  Serial.print("\t Ib: ");
+  Serial.print(currents.b, 4);
+  Serial.print("\t Ic: ");
+  Serial.print(currents.c, 4);
+  Serial.print("\t| I: ");
+  Serial.print(current_magnitude, 4);
+  Serial.println("A");
+}
 }
